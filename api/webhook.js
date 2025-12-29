@@ -6,7 +6,6 @@ const redis = new Redis({
 });
 
 export default async function handler(req, res) {
-  // 1. TERIMA DATA (POST)
   if (req.method === 'POST') {
     try {
       const data = req.body;
@@ -19,11 +18,8 @@ export default async function handler(req, res) {
         message: data.message || "Pesan donasi"
       });
 
-      // Simpan untuk Notifikasi
       await redis.lpush('donasi_queue', payload);
-      
-      // Simpan ke Papan Peringkat (Sorted Set)
-      // Perintah ini akan menambah total donasi jika orangnya sama
+      // Mencatat total donasi ke leaderboard 'top_donors'
       await redis.zincrby('top_donors', amount, username);
       
       return res.status(200).json({ status: 'Ok' });
@@ -32,21 +28,9 @@ export default async function handler(req, res) {
     }
   }
 
-  // 2. AMBIL DATA UNTUK NOTIFIKASI (GET - Digunakan script lama kamu)
-  if (req.method === 'GET' && !req.query.type) {
-    try {
-      const dataString = await redis.rpop('donasi_queue');
-      if (!dataString) return res.status(200).json(null);
-      return res.status(200).send(dataString);
-    } catch (e) {
-      return res.status(200).json(null);
-    }
-  }
-
-  // 3. AMBIL DATA UNTUK PAPAN TOP DONOR (GET ?type=leaderboard)
   if (req.method === 'GET' && req.query.type === 'leaderboard') {
     try {
-      // Ambil Top 10 besar
+      // Ambil Top 10
       const topData = await redis.zrange('top_donors', 0, 9, { rev: true, withScores: true });
       return res.status(200).json(topData);
     } catch (e) {
