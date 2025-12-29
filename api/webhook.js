@@ -6,40 +6,33 @@ const redis = new Redis({
 });
 
 export default async function handler(req, res) {
-  // --- BAGIAN TERIMA DATA (POST) ---
+  // 1. TERIMA DATA DARI SOCIABUZZ (POST)
   if (req.method === 'POST') {
     try {
       const data = req.body;
-      const payload = {
+      const payload = JSON.stringify({
         username: data.sender_name || "Seseorang",
         amount: parseInt(data.amount) || 0,
-        message: data.message || "Pesan donasi",
-        id: Date.now()
-      };
+        message: data.message || "Pesan donasi"
+      });
 
-      // KUNCI SUKSES: Pakai JSON.stringify agar tidak jadi [object Object]
-      await redis.lpush('donasi_queue', JSON.stringify(payload));
-      
-      return res.status(200).json({ status: 'Sukses masuk antrean', data: payload });
-    } catch (error) {
-      return res.status(500).json({ error: error.message });
+      await redis.lpush('donasi_queue', payload);
+      return res.status(200).json({ status: 'Ok' });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
     }
   }
 
-  // --- BAGIAN KIRIM KE ROBLOX (GET) ---
+  // 2. KIRIM DATA KE ROBLOX (GET)
   if (req.method === 'GET') {
     try {
       const dataString = await redis.rpop('donasi_queue');
+      if (!dataString) return res.status(200).json(null);
       
-      if (!dataString) {
-        return res.status(200).json(null); 
-      }
-
-      // Karena tadi sudah di-stringify, sekarang kita parse balik
-      return res.status(200).json(JSON.parse(dataString));
-    } catch (error) {
-      console.error(error);
-      return res.status(200).json({ error_debug: true, message: "Data rusak, dilewati." });
+      // Kirim apa adanya, jangan di-parse di server agar aman
+      return res.status(200).send(dataString);
+    } catch (e) {
+      return res.status(200).json(null);
     }
   }
 }
