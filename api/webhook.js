@@ -1,59 +1,45 @@
 import { Redis } from '@upstash/redis';
 
-// Cek apakah env variable terbaca
-if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-  console.error("Environment Variables Missing!");
-}
-
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL,
   token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
 export default async function handler(req, res) {
-  // --- BAGIAN 1: MENERIMA DARI SOCIABUZZ (POST) ---
+  // --- BAGIAN TERIMA DATA (POST) ---
   if (req.method === 'POST') {
     try {
       const data = req.body;
       const payload = {
         username: data.sender_name || "Seseorang",
         amount: parseInt(data.amount) || 0,
-        message: data.message || "Tidak ada pesan",
+        message: data.message || "Pesan donasi",
         id: Date.now()
       };
 
+      // KUNCI SUKSES: Pakai JSON.stringify agar tidak jadi [object Object]
       await redis.lpush('donasi_queue', JSON.stringify(payload));
-      return res.status(200).json({ status: 'Masuk antrean', data: payload });
-
+      
+      return res.status(200).json({ status: 'Sukses masuk antrean', data: payload });
     } catch (error) {
-      console.error("Error POST:", error);
-      return res.status(500).json({ error: 'Gagal simpan: ' + error.message });
+      return res.status(500).json({ error: error.message });
     }
   }
 
-  // --- BAGIAN 2: DIKIRIM KE ROBLOX (GET) ---
+  // --- BAGIAN KIRIM KE ROBLOX (GET) ---
   if (req.method === 'GET') {
     try {
-      // Kita bungkus dalam try-catch agar tahu jika ada error koneksi
       const dataString = await redis.rpop('donasi_queue');
-
+      
       if (!dataString) {
-        return res.status(200).json(null);
+        return res.status(200).json(null); 
       }
 
+      // Karena tadi sudah di-stringify, sekarang kita parse balik
       return res.status(200).json(JSON.parse(dataString));
-
     } catch (error) {
-      // PENTING: Jika error, kirim status 200 tapi isinya pesan error
-      // supaya bisa terbaca di Output Roblox
-      console.error("Error GET:", error);
-      return res.status(200).json({ 
-        error_debug: true, 
-        message: error.message,
-        stack: error.stack
-      });
+      console.error(error);
+      return res.status(200).json({ error_debug: true, message: "Data rusak, dilewati." });
     }
   }
-
-  return res.status(405).json({ error: 'Method not allowed' });
 }
