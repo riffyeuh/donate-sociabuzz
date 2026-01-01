@@ -7,24 +7,25 @@ const redis = new Redis({
 
 export default async function handler(req, res) {
   // --- 1. MENERIMA DONASI BARU (POST) ---
-  if (req.method === 'POST') {
-    try {
-      const data = req.body;
-      const payload = JSON.stringify({
-        username: data.sender_name || "Seseorang",
-        amount: parseInt(data.amount) || 0,
-        message: data.message || "Terima kasih!"
-      });
+ if (req.method === 'POST') {
+  try {
+    const data = req.body;
+    
+    // Sesuaikan variabelnya (Bagi-bagi biasanya pakai 'donator_name' atau 'name')
+    const payload = JSON.stringify({
+      username: data.donator_name || data.name || "Seseorang", 
+      amount: parseInt(data.amount) || 0,
+      message: data.message || "Terima kasih!"
+    });
 
-      // Simpan ke antrean notifikasi & update skor papan peringkat
-      await redis.lpush('donasi_queue', payload);
-      await redis.zincrby('top_donors', parseInt(data.amount), data.sender_name || "Seseorang");
-      
-      return res.status(200).json({ status: 'Ok' });
-    } catch (e) {
-      return res.status(500).json({ error: e.message });
-    }
+    await redis.lpush('donasi_queue', payload);
+    await redis.zincrby('top_donors', parseInt(data.amount), data.donator_name || data.name || "Seseorang");
+    
+    return res.status(200).json({ status: 'Ok' });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
   }
+}
 
   // --- 2. LOGIKA MENGAMBIL DATA (GET) ---
   if (req.method === 'GET') {
@@ -40,3 +41,4 @@ export default async function handler(req, res) {
     return res.status(200).send(dataString);
   }
 }
+
