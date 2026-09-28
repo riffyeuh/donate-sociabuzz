@@ -17,6 +17,32 @@ function isAuthorized(req) {
   return bearer === expected || query === expected;
 }
 
+// Ambil field pertama yang ada dari daftar nama kemungkinan.
+// Platform donasi beda-beda nama field-nya (BagiBagi, SociaBuzz, Saweria, dll).
+function pick(data, names) {
+  if (!data || typeof data !== 'object') return undefined;
+  for (const n of names) {
+    const v = data[n];
+    if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+  }
+  // Coba juga satu level nested (mis. data.data.nama)
+  for (const key of Object.keys(data)) {
+    const v = data[key];
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      const found = pick(v, names);
+      if (found !== undefined) return found;
+    }
+  }
+  return undefined;
+}
+
+const NAME_FIELDS = ["donator_name", "name", "supporter_name", "supporter", "from_name",
+  "donor_name", "donatur", "donor", "nama", "username", "display_name"];
+const AMOUNT_FIELDS = ["amount_raw", "amount", "gross_amount", "nominal", "price",
+  "quantity", "total", "jumlah", "value"];
+const MESSAGE_FIELDS = ["message", "pesan", "supporter_message", "note", "comment",
+  "description", "msg", "support_message"];
+
 export default async function handler(req, res) {
   if (!isAuthorized(req)) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -29,16 +55,14 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     try {
       const data = req.body;
+      const username = String(pick(data, NAME_FIELDS) || "Seseorang").slice(0, 100);
+      const amount = parseInt(pick(data, AMOUNT_FIELDS)) || 0;
+      const message = String(pick(data, MESSAGE_FIELDS) || "Terima kasih!").slice(0, 500);
 
-      // Sesuaikan variabelnya (Bagi-bagi biasanya pakai 'donator_name' atau 'name')
-      const payload = JSON.stringify({
-        username: data.donator_name || data.name || "Seseorang",
-        amount: parseInt(data.amount) || 0,
-        message: data.message || "Terima kasih!"
-      });
+      const payload = JSON.stringify({ username, amount, message });
 
       await redis.lpush('donasi_queue', payload);
-      await redis.zincrby('top_donors', parseInt(data.amount) || 0, data.donator_name || data.name || "Seseorang");
+      await redis.zincrby('top_donors', amount, username);
 
       return res.status(200).json({ status: 'Ok' });
     } catch (e) {
