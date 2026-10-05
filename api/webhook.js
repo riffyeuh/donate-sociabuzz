@@ -10,6 +10,8 @@ export default async function handler(req, res) {
  if (req.method === 'POST') {
   try {
     const data = req.body;
+    console.log('BODY:', JSON.stringify(data));
+    console.log('HEADERS:', JSON.stringify(req.headers));
 
     // BagiBagi kirim 'donator_name' / 'name'; tes via reqbin boleh pakai 'username'.
     const donorName = data.donator_name || data.name || data.username || "Seseorang";
